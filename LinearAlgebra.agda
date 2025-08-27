@@ -119,19 +119,14 @@ record VectorSpace c ℓ : Set (suc (c ⊔ ℓ)) where
     ScalarField : Field c ℓ
     Vector : Set c
 
-  open Field ScalarField hiding (Carrier) renaming (_+_ to _+ₛ_)
-
-  Scalar : Set c
-  Scalar = Field.Carrier ScalarField
+  open Field ScalarField renaming (Carrier to Scalar; _+_ to _+ₛ_)
 
   field
     _≈_ : Rel Vector (c ⊔ ℓ)
     _+_ : Op₂ Vector
     ⁻_  : Op₁ Vector
-    0𝕍  : Vector
-
-    -- TODO: better operator?
     _*_ : Scalar → Vector → Vector
+    0𝕍  : Vector
 
     +-isAbelianGroup : IsAbelianGroup _≈_ _+_ 0𝕍 ⁻_
     *-identity : ∀ v → 1# * v ≈ v
