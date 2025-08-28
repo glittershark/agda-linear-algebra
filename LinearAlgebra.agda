@@ -1,6 +1,6 @@
 module LinearAlgebra where
 
-open import Algebra hiding (_DistributesOver_; LeftIdentity; RightIdentity)
+open import Algebra hiding (_DistributesOver_; LeftIdentity; RightIdentity; Congruent₁)
 open import Relation.Binary.Core using (Rel)
 open import Relation.Binary.Structures using (IsEquivalence)
 open import Level hiding (zero)
@@ -75,7 +75,7 @@ record Field c ℓ : Set (suc (c ⊔ ℓ))  where
     ; isCommutativeSemigroup to ∙-isCommutativeSemigroup
     )
     hiding
-    ( isPartialEquivalence; reflexive; setoid; refl; sym )
+    ( isPartialEquivalence; isEquivalence; reflexive; setoid; refl; sym )
 
 module FieldTheorems {c} {ℓ} (f : Field c ℓ) where
   open Field f
@@ -135,27 +135,127 @@ record VectorSpace c ℓ : Set (suc (c ⊔ ℓ)) where
     *-distribʳ-+ : ∀ s₁ s₂ v → (s₁ +ₛ s₂) * v ≈ s₁ * v + s₂ * v
 
 -- TODO: rename
-module _ where
+module Vector where
     open import Data.Nat using (NonZero; ℕ)
     open import Data.Vec
     import Data.Vec.Relation.Binary.Equality.Setoid
+    open import Data.Vec.Relation.Binary.Pointwise.Inductive as PW hiding (setoid; map)
+    open import Data.Product using (_,_; proj₁; proj₂)
+    open import Relation.Binary.PropositionalEquality as PropositionalEquality using (_≡_)
+    import Data.Vec.Properties
+    open import Function using (id)
 
-    Fⁿ : ∀ {c ℓ} → Field c ℓ → (n : ℕ) → .⦃ NonZero n ⦄ → VectorSpace _ _
+    zipWith-mapₗ
+      : ∀ {ℓ} {A : Set ℓ} {n} (as bs : Vec A n) (f : A -> A -> A) g
+      → zipWith f (map g as) bs ≡ zipWith (λ a b → f (g a) b) as bs
+    zipWith-mapₗ [] [] f g = _≡_.refl
+    zipWith-mapₗ (a ∷ as) (b ∷ bs) f g =
+      cong₂ _∷_ PropositionalEquality.refl (zipWith-mapₗ as bs f g)
+      where open PropositionalEquality
+
+    zipWith-mapᵣ
+      : ∀ {ℓ} {A : Set ℓ} {n} (as bs : Vec A n) (f : A → A → A) g
+      → zipWith f as (map g bs) ≡ zipWith (λ a b → f a (g b)) as bs
+    zipWith-mapᵣ [] [] f g = _≡_.refl
+    zipWith-mapᵣ (a ∷ as) (b ∷ bs) f g =
+      cong₂ _∷_ PropositionalEquality.refl (zipWith-mapᵣ as bs f g)
+      where open PropositionalEquality
+
+    zipWith-same-list
+      : ∀ {ℓ} {A : Set ℓ} {n} (as : Vec A n) (f : A → A → A)
+      → zipWith f as as ≡ map (λ a → f a a) as
+    zipWith-same-list [] f = PropositionalEquality.refl
+    zipWith-same-list (a ∷ as) f = PropositionalEquality.cong₂ _∷_ PropositionalEquality.refl (zipWith-same-list as f)
+
+    Fⁿ : ∀ {c ℓ} → Field c ℓ → (n : ℕ) → .⦃ NonZero n ⦄ → VectorSpace c ℓ
     Fⁿ scalarField n =
-      let open Field scalarField renaming (Carrier to F) in
       record
       { ScalarField = scalarField
       ; Vector = Vec F n
-      ; _≈_ = Data.Vec.Relation.Binary.Equality.Setoid._≋_ (setoid)
+      ; _≈_ = _≈_
       ; _+_ = zipWith _+_
       ; ⁻_ = map ⁻_
       ; 0𝕍 = replicate n 0#
       ; _*_ = λ s → map (s ∙_)
-      ; +-isAbelianGroup = {!!}
-      ; *-identity = {!!}
-      ; *-distribˡ-+ = {!!}
-      ; *-distribʳ-+ = {!!}
+      ; +-isAbelianGroup =
+        record
+          { isGroup =
+              record
+              { isMonoid =
+                record
+                { isSemigroup =
+                  record
+                  { isMagma =
+                    record
+                    { isEquivalence = PW.isEquivalence +≈-isEquivalence _
+                    ; ∙-cong = zipWith-cong (IsMagma.∙-cong +ₛ-isMagma)
+                    }
+                  ; assoc = zipWith-assoc +-assoc }
+                ; identity = zipWith-identityˡ (proj₁ +-identity) , zipWith-identityʳ (proj₂ +-identity) }
+              ; inverse = +-leftInverse , +-rightInverse
+              ; ⁻¹-cong = λ x → map⁺ id (PW.map (IsGroup.⁻¹-cong isGroup) x)
+              }
+          ; comm = zipWith-comm (IsAbelianGroup.comm +ₛ-isAbelianGroup)
+          }
+      ; *-identity = map-id _ (identity .proj₁)
+      ; ∙-*-assoc = ∙-*-assoc
+      ; *-distribˡ-+ =  λ s v₁ v₂ → map-distrib-zipWith v₁ v₂ (_∙_ s) _+_ (∙-distrib-+ .proj₁ s)
+      ; *-distribʳ-+ = *-distribʳ-+ 
       }
+      where
+        open Field scalarField
+          renaming
+            ( Carrier to F
+            ; +-isAbelianGroup to +ₛ-isAbelianGroup
+            ; isEquivalence to +≈-isEquivalence
+            ; _≈_ to _≈ₛ_)
+        _≈_ = Data.Vec.Relation.Binary.Equality.Setoid._≋_ (setoid)
+        ≈-setoid = Data.Vec.Relation.Binary.Equality.Setoid.≋-setoid (setoid) n
+        +ₛ-isMagma = (IsAbelianGroup.isMagma +ₛ-isAbelianGroup)
+
+        +-leftInverse : ∀ x → zipWith _+_ (map ⁻_ x) x ≈ replicate n 0#
+        +-leftInverse x = let open Relation.Binary.Reasoning.Setoid (≈-setoid) in begin
+          zipWith _+_ (map ⁻_ x) x             ≡⟨⟩
+          zipWith (λ a b → a + b) (map ⁻_ x) x ≡⟨ zipWith-mapₗ x x _+_ ⁻_ ⟩
+          zipWith (λ a b → ⁻ a + b) x x        ≡⟨ zipWith-same-list x _ ⟩
+          map (λ a → ⁻ a + a) x                ≈⟨ map⁺ (λ {x = x₁} {y} z → (proj₁ inverse) x₁) (Setoid.refl ≈-setoid) ⟩
+          map (λ _ → 0#) x                     ≡⟨ Data.Vec.Properties.map-const _ _ ⟩
+          replicate n 0#                       ∎
+
+        +-rightInverse : ∀ x → zipWith _+_ x (map ⁻_ x) ≈ replicate n 0#
+        +-rightInverse x = let open Relation.Binary.Reasoning.Setoid (≈-setoid) in begin
+          zipWith _+_ x (map ⁻_ x)             ≡⟨⟩
+          zipWith (λ a b → a + b) x (map ⁻_ x) ≡⟨ zipWith-mapᵣ x x _+_ ⁻_ ⟩
+          zipWith (λ a b → a + ⁻ b) x x        ≡⟨ zipWith-same-list x _ ⟩
+          map (λ a → a + ⁻ a) x                ≈⟨ map⁺ (λ {x = x₁} {y} z → (proj₂ inverse) x₁) (Setoid.refl ≈-setoid) ⟩
+          map (λ _ → 0#) x                     ≡⟨ Data.Vec.Properties.map-const _ _ ⟩
+          replicate n 0#                       ∎
+
+        map-id : ∀ f → (∀ g → f g ≈ₛ g) → ∀ {n : ℕ} (xs : Vec _ n) → map f xs ≈ xs
+        map-id f is-id [] = []
+        map-id f is-id (x ∷ xs) = is-id x ∷ map-id f is-id xs
+
+        map-distrib-zipWith
+          : ∀ {n} (as bs : Vec _ n) f g
+          → (∀ x y → f (g x y) ≈ₛ g (f x) (f y))
+          → map f (zipWith g as bs) ≈ zipWith g (map f as) (map f bs)
+        map-distrib-zipWith [] [] f g f-distrib-g = []
+        map-distrib-zipWith (a ∷ as) (b ∷ bs) f g f-distrib-g =
+          (f-distrib-g a b) ∷ map-distrib-zipWith as bs f g f-distrib-g
+
+        *-distribʳ-+
+          : ∀ {n} s₁ s₂ (v : Vec _ n)
+          → map ((s₁ + s₂) ∙_) v ≈ zipWith _+_ (map (s₁ ∙_) v) (map (s₂ ∙_) v)
+        *-distribʳ-+ s₁ s₂ [] = []
+        *-distribʳ-+ s₁ s₂ (x ∷ v) = ∙-distrib-+ .proj₂ x s₁ s₂ ∷ *-distribʳ-+ s₁ s₂ v
+
+        ∙-*-assoc
+          : ∀ {n} (s₁ s₂ : F) (v : Vec F n)
+          → map (s₁ ∙ s₂ ∙_) v ≈ map (s₁ ∙_) (map (s₂ ∙_) v)
+        ∙-*-assoc s₁ s₂ [] = []
+        ∙-*-assoc s₁ s₂ (x ∷ v) = (assoc s₁ s₂ x) ∷ (∙-*-assoc s₁ s₂ v)
+
+
 
 module ℚ where
   open import Data.Rational using (ℚ)
