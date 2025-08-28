@@ -167,7 +167,7 @@ module Vector where
     zipWith-same-list [] f = PropositionalEquality.refl
     zipWith-same-list (a ∷ as) f = PropositionalEquality.cong₂ _∷_ PropositionalEquality.refl (zipWith-same-list as f)
 
-    Fⁿ : ∀ {c ℓ} → Field c ℓ → (n : ℕ) → .⦃ NonZero n ⦄ → VectorSpace c ℓ
+    Fⁿ : ∀ {c ℓ} → Field c ℓ → (n : ℕ) → VectorSpace c ℓ
     Fⁿ scalarField n =
       record
       { ScalarField = scalarField
