@@ -7,6 +7,7 @@ open import Algebra
 import Algebra.Definitions
 import Algebra.Consequences.Setoid as Consequences
 import Algebra.Properties.AbelianGroup as AbelianGroupProperties
+open import Algebra.Apartness using (HeytingField; IsHeytingField)
 open import Relation.Binary.Core using (Rel)
 open import Relation.Nullary.Negation.Core using (¬_; contradiction)
 import Relation.Binary.Reasoning.Setoid
